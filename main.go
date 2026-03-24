@@ -11,6 +11,8 @@ func main() {
 	cfg := &config{
 		caughtPokemon: map[string]pokeapi.Pokemon{},
 		pokeapiClient: pokeClient,
+		history:       []string{},
+		historyIndex:  -1,
 	}
 
 	startRepl(cfg)

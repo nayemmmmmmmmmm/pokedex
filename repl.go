@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
+	"github.com/chzyer/readline"
 	"github.com/nayemmmmmmmmmm/pokedex/internal/pokeapi"
 )
 
@@ -14,15 +14,40 @@ type config struct {
 	nextLocationsURL *string
 	prevLocationsURL *string
 	caughtPokemon    map[string]pokeapi.Pokemon
+	history          []string
+	historyIndex     int
 }
 
 func startRepl(cfg *config) {
-	reader := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("Pokedex > ")
-		reader.Scan()
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          "Pokedex > ",
+		HistoryFile:     "pokedex_history.tmp",
+		AutoComplete:    nil,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
 
-		words := cleanInput(reader.Text())
+	for {
+		line, err := rl.Readline()
+		if err != nil {
+			if err == readline.ErrInterrupt {
+				if len(line) == 0 {
+					break
+				} else {
+					continue
+				}
+			} else if err == io.EOF {
+				break
+			}
+			fmt.Println("Error reading input:", err)
+			continue
+		}
+
+		words := cleanInput(line)
 		if len(words) == 0 {
 			continue
 		}
@@ -65,6 +90,11 @@ func getCommands() map[string]cliCommand {
 			name:        "help",
 			description: "Displays a help message",
 			callback:    commandHelp,
+		},
+		"battle": {
+			name:        "battle <your_pokemon> <opponent_pokemon>",
+			description: "Simulate a battle between your pokemon and an opponent",
+			callback:    commandBattle,
 		},
 		"catch": {
 			name:        "catch <pokemon_name",
