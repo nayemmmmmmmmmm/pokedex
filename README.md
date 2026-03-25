@@ -154,10 +154,12 @@ pokedex/
 ├── command_pokedex.go         # Pokedex command
 ├── command_explore.go         # Legacy explore command (removed)
 ├── internal/
-│   └── pokeapi/
-│       ├── client.go          # API client
-│       ├── types_pokemon.go   # Pokemon data structures
-│       └── types_locations.go # Location data structures
+│   ├── pokeapi/
+│   │   ├── client.go          # API client
+│   │   ├── types_pokemon.go   # Pokemon data structures
+│   │   └── types_locations.go # Location data structures
+│   └── pokecache/
+│       └── pokecache.go       # Caching system implementation
 ├── *_test.go                  # Unit tests for all systems
 └── README.md                  # This file
 ```
