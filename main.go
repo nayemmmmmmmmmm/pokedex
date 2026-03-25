@@ -15,6 +15,7 @@ func main() {
 		historyIndex:     -1,
 		party:            NewParty(6), // Max 6 Pokemon in party
 		evolutionTracker: NewEvolutionTracker(),
+		explorationState: NewExplorationState(),
 	}
 
 	startRepl(cfg)

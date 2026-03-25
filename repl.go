@@ -18,6 +18,7 @@ type config struct {
 	historyIndex     int
 	party            *Party
 	evolutionTracker *EvolutionTracker
+	explorationState *ExplorationState
 }
 
 func startRepl(cfg *config) {
@@ -118,6 +119,16 @@ func getCommands() map[string]cliCommand {
 			description: "Cancel an ongoing evolution",
 			callback:    commandCancelEvolution,
 		},
+		"explore": {
+			name:        "explore [command] [args...]",
+			description: "Explore the world - use 'explore start' to begin",
+			callback:    commandExplore,
+		},
+		"areas": {
+			name:        "areas",
+			description: "Show available areas and their Pokemon",
+			callback:    commandAreas,
+		},
 		"addtoparty": {
 			name:        "addtoparty <pokemon_name>",
 			description: "Add a caught Pokemon to your party",
@@ -147,11 +158,6 @@ func getCommands() map[string]cliCommand {
 			name:        "inspect <pokemon_name",
 			description: "View details about a caught Pokemon",
 			callback:    commandInspect,
-		},
-		"explore": {
-			name:        "explore <location_name",
-			description: "Explore a location",
-			callback:    commandExplore,
 		},
 		"map": {
 			name:        "map",
