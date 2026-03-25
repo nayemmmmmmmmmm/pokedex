@@ -32,9 +32,13 @@ func commandBattle(cfg *config, args ...string) error {
 	playerName := args[0]
 	opponentName := args[1]
 
-	playerPokemon, ok := cfg.caughtPokemon[playerName]
-	if !ok {
-		return fmt.Errorf("you haven't caught %s", playerName)
+	playerPartyPokemon, err := cfg.party.GetPokemon(playerName)
+	if err != nil {
+		return fmt.Errorf("you don't have %s in your party", playerName)
+	}
+
+	if !playerPartyPokemon.IsAlive() {
+		return fmt.Errorf("%s has fainted and cannot battle", playerName)
 	}
 
 	opponentPokemon, err := cfg.pokeapiClient.GetPokemon(opponentName)
@@ -42,24 +46,51 @@ func commandBattle(cfg *config, args ...string) error {
 		return fmt.Errorf("couldn't find opponent %s: %v", opponentName, err)
 	}
 
-	battle := &Battle{
-		playerPokemon: &BattlePokemon{
-			pokemon:  playerPokemon,
-			maxHp:    calculateHP(playerPokemon),
-			hp:       calculateHP(playerPokemon),
-			isPlayer: true,
-		},
-		opponentPokemon: &BattlePokemon{
-			pokemon:  opponentPokemon,
-			maxHp:    calculateHP(opponentPokemon),
-			hp:       calculateHP(opponentPokemon),
-			isPlayer: false,
-		},
-		turnCount: 0,
-		isActive:  true,
+	// Create battle Pokemon from party Pokemon
+	playerBattlePokemon := &BattlePokemon{
+		pokemon:  playerPartyPokemon.pokemon,
+		hp:       playerPartyPokemon.hp,
+		maxHp:    playerPartyPokemon.maxHp,
+		isPlayer: true,
 	}
 
-	return runBattle(cfg, battle)
+	opponentBattlePokemon := &BattlePokemon{
+		pokemon:  opponentPokemon,
+		hp:       calculateHP(opponentPokemon),
+		maxHp:    calculateHP(opponentPokemon),
+		isPlayer: false,
+	}
+
+	battle := &Battle{
+		playerPokemon:   playerBattlePokemon,
+		opponentPokemon: opponentBattlePokemon,
+		turnCount:       0,
+		isActive:        true,
+	}
+
+	err = runBattle(cfg, battle)
+	if err != nil {
+		return err
+	}
+
+	// Update party Pokemon HP after battle
+	playerPartyPokemon.hp = playerBattlePokemon.hp
+
+	// Award experience if player won
+	if opponentBattlePokemon.hp <= 0 {
+		expGain := calculateExpGain(opponentPokemon, playerPartyPokemon.level)
+		playerPartyPokemon.GainExp(expGain)
+		fmt.Printf("%s gained %d EXP!\n", playerPartyPokemon.pokemon.Name, expGain)
+	}
+
+	return nil
+}
+
+func calculateExpGain(defeatedPokemon pokeapi.Pokemon, playerLevel int) int {
+	// Simple EXP formula: base experience * level factor
+	baseExp := defeatedPokemon.BaseExperience
+	levelMultiplier := 1.0 + (float64(playerLevel) * 0.1)
+	return int(float64(baseExp) * levelMultiplier)
 }
 
 func calculateHP(pokemon pokeapi.Pokemon) int {
@@ -111,13 +142,13 @@ func runBattle(cfg *config, battle *Battle) error {
 
 		first, second := determineTurnOrder(battle.playerPokemon, battle.opponentPokemon)
 
-		executeTurn(first, second)
-		
+		executeTurn(first, second, battle)
+
 		if !battle.isActive {
 			break
 		}
 
-		executeTurn(second, first)
+		executeTurn(second, first, battle)
 
 		fmt.Printf("%s HP: %d/%d\n", battle.playerPokemon.pokemon.Name, battle.playerPokemon.hp, battle.playerPokemon.maxHp)
 		fmt.Printf("%s HP: %d/%d\n", battle.opponentPokemon.pokemon.Name, battle.opponentPokemon.hp, battle.opponentPokemon.maxHp)
@@ -139,7 +170,7 @@ func determineTurnOrder(attacker, defender *BattlePokemon) (*BattlePokemon, *Bat
 	return defender, attacker
 }
 
-func executeTurn(attacker, defender *BattlePokemon) {
+func executeTurn(attacker, defender *BattlePokemon, battle *Battle) {
 	if !attacker.isAlive() || !defender.isAlive() {
 		return
 	}
@@ -160,6 +191,7 @@ func executeTurn(attacker, defender *BattlePokemon) {
 		} else {
 			fmt.Printf("You win! %s defeated %s.\n", attacker.pokemon.Name, defender.pokemon.Name)
 		}
+		battle.isActive = false
 	}
 }
 
@@ -168,7 +200,7 @@ func calculateDamage(attacker, defender *BattlePokemon) int {
 	defense := calculateDefense(defender.pokemon)
 	level := 50
 
-	baseDamage := ((2*level + 10) * attack / defense) / 50 + 2
+	baseDamage := ((2*level+10)*attack/defense)/50 + 2
 	randomFactor := rand.IntN(38) + 217
 	damage := baseDamage * randomFactor / 255
 
@@ -210,9 +242,9 @@ func getTypeEffectiveness(attacker, defender pokeapi.Pokemon) float64 {
 func getTypeMultiplier(attackerType, defenderType string) float64 {
 	typeChart := map[string]map[string]float64{
 		"normal": {
-			"rock":     0.5,
-			"ghost":    0,
-			"steel":    0.5,
+			"rock":  0.5,
+			"ghost": 0,
+			"steel": 0.5,
 		},
 		"fire": {
 			"fire":   0.5,
@@ -233,18 +265,18 @@ func getTypeMultiplier(attackerType, defenderType string) float64 {
 			"dragon": 0.5,
 		},
 		"electric": {
-			"water":   2,
+			"water":    2,
 			"electric": 0.5,
-			"grass":   0.5,
-			"ground":  0,
-			"flying":  2,
-			"dragon":  0.5,
+			"grass":    0.5,
+			"ground":   0,
+			"flying":   2,
+			"dragon":   0.5,
 		},
 		"grass": {
 			"fire":   0.5,
 			"water":  2,
 			"grass":  0.5,
-			"poison":  0.5,
+			"poison": 0.5,
 			"flying": 0.5,
 			"bug":    0.5,
 			"rock":   2,
@@ -262,17 +294,17 @@ func getTypeMultiplier(attackerType, defenderType string) float64 {
 			"steel":  0.5,
 		},
 		"fighting": {
-			"normal": 2,
-			"ice":    2,
-			"poison": 0.5,
-			"flying": 0.5,
+			"normal":  2,
+			"ice":     2,
+			"poison":  0.5,
+			"flying":  0.5,
 			"psychic": 0.5,
-			"bug":    0.5,
-			"rock":   2,
-			"ghost":  0,
-			"dark":   2,
-			"steel":  2,
-			"fairy":  0.5,
+			"bug":     0.5,
+			"rock":    2,
+			"ghost":   0,
+			"dark":    2,
+			"steel":   2,
+			"fairy":   0.5,
 		},
 		"poison": {
 			"grass":  2,
@@ -285,55 +317,55 @@ func getTypeMultiplier(attackerType, defenderType string) float64 {
 			"fairy":  2,
 		},
 		"ground": {
-			"fire":    2,
-			"grass":   0.5,
+			"fire":     2,
+			"grass":    0.5,
 			"electric": 2,
-			"poison":  2,
-			"flying":  0,
-			"bug":    0.5,
-			"rock":   2,
-			"ghost":  0,
-			"steel":  2,
+			"poison":   2,
+			"flying":   0,
+			"bug":      0.5,
+			"rock":     2,
+			"ghost":    0,
+			"steel":    2,
 		},
 		"flying": {
-			"grass":  2,
+			"grass":    2,
 			"electric": 0.5,
-			"poison": 2,
+			"poison":   2,
 			"fighting": 2,
-			"bug":    2,
-			"rock":   0.5,
-			"steel":  0.5,
+			"bug":      2,
+			"rock":     0.5,
+			"steel":    0.5,
 		},
 		"psychic": {
 			"fighting": 2,
-			"poison":  2,
-			"ground":  2,
-			"psychic": 0.5,
-			"bug":    0.5,
-			"ghost":  0,
-			"dark":   0,
-			"steel":  0.5,
+			"poison":   2,
+			"ground":   2,
+			"psychic":  0.5,
+			"bug":      0.5,
+			"ghost":    0,
+			"dark":     0,
+			"steel":    0.5,
 		},
 		"bug": {
-			"fire":    0.5,
-			"grass":   2,
+			"fire":     0.5,
+			"grass":    2,
 			"fighting": 0.5,
-			"poison":  0.5,
-			"flying":  0.5,
-			"psychic": 2,
-			"ghost":  0.5,
-			"dark":    2,
-			"steel":   0.5,
-			"fairy":   0.5,
+			"poison":   0.5,
+			"flying":   0.5,
+			"psychic":  2,
+			"ghost":    0.5,
+			"dark":     2,
+			"steel":    0.5,
+			"fairy":    0.5,
 		},
 		"rock": {
-			"fire":    2,
-			"ice":     2,
+			"fire":     2,
+			"ice":      2,
 			"fighting": 0.5,
-			"ground":  2,
-			"flying":  2,
-			"bug":     2,
-			"steel":   0.5,
+			"ground":   2,
+			"flying":   2,
+			"bug":      2,
+			"steel":    0.5,
 		},
 		"ghost": {
 			"normal":  0,
@@ -350,19 +382,19 @@ func getTypeMultiplier(attackerType, defenderType string) float64 {
 			"fairy":  0,
 		},
 		"steel": {
-			"fire":   0.5,
-			"water":  0.5,
-			"ice":    2,
-			"steel":  0.5,
-			"fairy":  2,
+			"fire":  0.5,
+			"water": 0.5,
+			"ice":   2,
+			"steel": 0.5,
+			"fairy": 2,
 		},
 		"fairy": {
-			"fire":    0.5,
-			"poison":  0.5,
+			"fire":     0.5,
+			"poison":   0.5,
 			"fighting": 2,
-			"dragon":  2,
-			"dark":    2,
-			"steel":   0.5,
+			"dragon":   2,
+			"dark":     2,
+			"steel":    0.5,
 		},
 	}
 

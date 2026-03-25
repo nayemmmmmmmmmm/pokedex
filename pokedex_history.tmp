@@ -15,3 +15,27 @@ catch snorlax
 catch pidgey
 battle pidgey charirard
 catch pidgey
+battle pidgey charizard
+catch pidgey
+battle pidgey charizard
+party
+addtoparty charizard
+catch charizard
+catch pidgey
+party
+heal pidgey
+removefromparty charizard
+party
+catch charizard
+battle charizard
+battle pidgey charizard
+evolve pidgey
+party
+catch charizard
+catch pidgey
+evolve pidgey
+evaluationstatus pidgey
+evolutionstatus pidgey
+catch charizard
+evolve charizard
+evolutionstatus charizard

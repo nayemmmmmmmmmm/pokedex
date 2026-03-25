@@ -16,6 +16,8 @@ type config struct {
 	caughtPokemon    map[string]pokeapi.Pokemon
 	history          []string
 	historyIndex     int
+	party            *Party
+	evolutionTracker *EvolutionTracker
 }
 
 func startRepl(cfg *config) {
@@ -90,6 +92,46 @@ func getCommands() map[string]cliCommand {
 			name:        "help",
 			description: "Displays a help message",
 			callback:    commandHelp,
+		},
+		"party": {
+			name:        "party",
+			description: "View your Pokemon party with levels and HP",
+			callback:    commandParty,
+		},
+		"evolve": {
+			name:        "evolve <pokemon_name>",
+			description: "Start evolving a Pokemon (requires minimum level)",
+			callback:    commandEvolve,
+		},
+		"evolutionstatus": {
+			name:        "evolutionstatus [pokemon_name]",
+			description: "Check evolution status of your Pokemon",
+			callback:    commandEvolutionStatus,
+		},
+		"checkevolutions": {
+			name:        "checkevolutions",
+			description: "Check for completed evolutions",
+			callback:    commandCheckEvolutions,
+		},
+		"cancelevolve": {
+			name:        "cancelevolve <pokemon_name>",
+			description: "Cancel an ongoing evolution",
+			callback:    commandCancelEvolution,
+		},
+		"addtoparty": {
+			name:        "addtoparty <pokemon_name>",
+			description: "Add a caught Pokemon to your party",
+			callback:    commandAddToParty,
+		},
+		"removefromparty": {
+			name:        "removefromparty <pokemon_name>",
+			description: "Remove a Pokemon from your party",
+			callback:    commandRemoveFromParty,
+		},
+		"heal": {
+			name:        "heal [pokemon_name]",
+			description: "Heal your Pokemon (all or specific)",
+			callback:    commandHeal,
 		},
 		"battle": {
 			name:        "battle <your_pokemon> <opponent_pokemon>",

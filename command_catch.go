@@ -26,8 +26,18 @@ func commandCatch(cfg *config, args ...string) error {
 	}
 
 	fmt.Printf("%s was caught!\n", pokemon.Name)
-	fmt.Println("You may now inspect it with the inspect command.")
 
+	// Add to caught Pokemon (for compatibility)
 	cfg.caughtPokemon[pokemon.Name] = pokemon
+
+	// Try to add to party
+	err = cfg.party.AddPokemon(pokemon)
+	if err != nil {
+		fmt.Printf("Couldn't add %s to party: %v\n", pokemon.Name, err)
+		fmt.Printf("%s was sent to storage.\n", pokemon.Name)
+	} else {
+		fmt.Printf("%s was added to your party!\n", pokemon.Name)
+	}
+
 	return nil
 }
